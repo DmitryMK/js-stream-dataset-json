@@ -25,5 +25,5 @@
     "allowJs": true,
     "outDir": "dist"
   },
-  "exclude": ["test"]
+  "exclude": ["test", "dist"]
 }
