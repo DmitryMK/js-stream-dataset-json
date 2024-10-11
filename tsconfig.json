@@ -25,5 +25,6 @@
     "allowJs": true,
     "outDir": "dist"
   },
+  "include": ["./src/**/*", "index.d.ts"],
   "exclude": ["test", "dist"]
 }

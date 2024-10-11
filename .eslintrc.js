@@ -6,6 +6,7 @@ module.exports = {
     "import/no-unresolved": "error",
     "react/react-in-jsx-scope": "off",
     "prefer-destructuring": "off",
+    indent: ["error", 4],
   },
   parserOptions: {
     ecmaVersion: 2020,
