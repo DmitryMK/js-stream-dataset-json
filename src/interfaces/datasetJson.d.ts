@@ -1,6 +1,4 @@
-/**
- * Enumerated set of Permissible Variable Types
- */
+// Variable Types
 export type ItemType =
     | "string"
     | "integer"
@@ -9,188 +7,77 @@ export type ItemType =
     | "decimal"
     | "boolean";
 
-/**
- * The first item in the data array needs to be a number (itemGroupDataSeq)
- */
-export type FirstItemType = number;
-export type ItemDataArray = [FirstItemType, ...Array<string | number | null>];
+// Target Variable Types
+export type ItemTargetType =
+    | "integer"
+    | "decimal";
 
-/**
- * Definition for Variable in the Dataset
- */
-export interface ItemDescription {
-    /**
-     * Unique identifier for Variable. Must correspond to ItemDef/@OID in Define-XML.
-     *
-     * @TJS-type string
-     */
-    OID: string;
-    /**
-     * Name for Variable
-     *
-     * @TJS-type string
-     */
+// The first item in the data array needs to be a number (itemGroupDataSeq)
+export type FirstItemType = number;
+export type ItemDataArray = [FirstItemType, ...Array<string | number | boolean | null >];
+
+// Source System interface
+export interface SourceSystem {
+    // Name of the Source System
     name: string;
-    /**
-     * Label for Variable
-     *
-     * @TJS-type string
-     */
+    // Version of the Source System
+    version: string;
+}
+
+
+// Definition for Variable in the Dataset
+export interface ItemDescription {
+    // Unique identifier for Variable. Must correspond to ItemDef/@OID in Define-XML.
+    itemOID: string;
+    // Name for Variable
+    name: string;
+    // Label for Variable
     label: string;
-    /**
-     * Data type for Variable
-     *
-     * @TJS-type ItemType
-     */
-    type: ItemType;
-    /**
-     * Length for Variable
-     *
-     * @minimum 1
-     * @TJS-type integer
-     */
-    length?: number | null;
-    /**
-     * Display format supports data visualization of numeric float and date values.
-     *
-     * @TJS-type string
-     */
+    // Data type for Variable
+    dataType: ItemType;
+    // Indicates the data type into which the receiving system must transform the associated Dataset-JSON variable.
+    targetDataType?: ItemType;
+    // Length for Variable
+    length?: number;
+    // Display format supports data visualization of numeric float and date values.
     displayFormat?: string;
-    /**
-     * Indicates that this item is a key variable in the dataset structure. It also provides an ordering for the keys.
-     *
-     * @TJS-type integer
-     */
+    // Indicates that this item is a key variable in the dataset structure. It also provides an ordering for the keys.
     keySequence?: number;
 }
 
-/**
- * Definition for Dataset
- */
-export interface ItemGroupData {
-    /**
-     * Number of Records in Dataset
-     *
-     * @minimum 0
-     * @TJS-type integer
-     */
-    records: number;
-    /**
-     * Name for Dataset
-     *
-     * @TJS-type string
-     */
-    name: string;
-    /**
-     * Label for Dataset
-     *
-     * @TJS-type string
-     */
-    label: string;
-    /**
-     * Array with Variable Descriptions
-     *
-     * @TJS-type array
-     */
-    items: Array<ItemDescription>;
-    /**
-     * Contents for Dataset. Array of records, where each record is represented as an array of values.
-     *
-     * @TJS-type array
-     */
-    itemData: Array<ItemDataArray>;
-}
 
-/**
- * Definition for Data contained in Dataset-JSON
- */
-export interface Data {
-    /**
-     * Unique identifier for Study. See ODM definition for study OID (ODM/Study/@OID).
-     *
-     * @TJS-type string
-     */
-    studyOID?: string;
-    /**
-     * Metadata Version Identifier. See ODM definition for metadata version OID (ODM/Study/MetaDataVersion/@OID).
-     *
-     * @TJS-type string
-     */
-    metaDataVersionOID?: string;
-    /**
-     * URL for a metadata file the describing the data.
-     *
-     * @TJS-type string
-     */
-    metaDataRef?: string;
-    /**
-     * Object of Datasets. Key value is a unique identifier for Dataset, corresponding to ItemGroupDef/@OID in Define-XML.
-     *
-     * @maxProperties 1
-     * @minProperties 1
-     * @TJS-type object
-     */
-    itemGroupData: {
-        [name: string]: ItemGroupData;
-    };
-}
-
-/**
- * Definition for Dataset-JSON
- */
-export interface DatasetJson {
-    /**
-     * Version of Dataset-JSON standard.
-     *
-     * @TJS-type string
-     */
+// Definition for Dataset-JSON
+export interface Dataset {
+    // Time of creation of the file containing the document.
+    datasetJSONCreationDateTime: string;
+    // Version of Dataset-JSON standard.
     datasetJSONVersion: string;
-    /**
-     * Time of creation of the file containing the document.
-     *
-     * @TJS-type string
-     */
-    creationDateTime: string;
-    /**
-     * A unique identifier for this file.
-     *
-     * @TJS-type string
-     */
+    // The total number of records in a dataset
+    records: number;
+    // The human readable name of the dataset
+    name: string;
+    // A short description of the dataset
+    label: string;
+    // Variable metadata
+    columns: Array<ItemDescription>;
+    // Data
+    rows: Array<ItemDataArray>;
+    // The date/time source database was last modified.
+    dbLastModifiedDateTime? : string;
+    // A unique identifier for this file.
     fileOID?: string;
-    /**
-     * The date/time at which the source database was queried in order to create this document.
-     *
-     * @TJS-type string
-     */
-    asOfDateTime?: string;
-    /**
-     * The organization that generated the Dataset-JSON file.
-     *
-     * @TJS-type string
-     */
+    // The organization that generated the Dataset-JSON file.
     originator?: string;
-    /**
-     * The computer system or database management system that is the source of the information in this file.
-     *
-     * @TJS-type string
-     */
-    sourceSystem?: string;
-    /**
-     * The version of the "SourceSystem" above.
-     *
-     * @TJS-type string
-     */
-    sourceSystemVersion?: string;
-    /**
-     * Object containing study subject data.
-     *
-     * @TJS-type Data
-     */
-    clinicalData?: Data;
-    /**
-     * Object containing study non-subject data.
-     *
-     * @TJS-type Data
-     */
-    referenceData?: Data;
+    // The computer system or database management system that is the source of the information in this file.
+    sourceSystem?: SourceSystem;
+    // Unique identifier for Study. See ODM definition for study OID (ODM/Study/@OID).
+    studyOID?: string;
+    // Metadata for the data contained in the file.
+    metaDataVersionOID?: string;
+    // URL for a metadata file the describing the data.
+    metaDataRef?: string;
+    // Foreign key to ItemGroupDef.OID in Define / MDR
+    itemGroupOID?: string;
+    // Boolean value that is set to true when the dataset contains reference data (not subject data)
+    isReferenceData?: boolean;
 }

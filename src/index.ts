@@ -2,16 +2,24 @@ import fs from "fs";
 import fsPromises from "fs/promises";
 import {
     ItemDataArray,
-    ItemDescription,
-    ItemGroupData,
-    Data,
+    Dataset
 } from "interfaces/datasetJson.d";
 import JSONStream from "JSONStream";
 
-type ItemGroupMetadata = Omit<ItemGroupData, "itemData">;
-type DataMetadata = Omit<Data, "itemGroupData">;
+// Metadata for the dataset
+type DatasetMetadata = Omit<Dataset, "rows">;
+// Metadata Attributes
+type MetadataAttributes = keyof DatasetMetadata;
+// Interface for checking which attributes are parsed
+type ParsedAttributes = {
+    [name in MetadataAttributes]: boolean;
+}
+// Type of the object returned
+type DataType = "array" | "object";
+// Type of returned Object from getData
+type ItemDataObject = { [name: string]: string | number | boolean | null };
 interface UniqueValues {
-    [name: string]: any[];
+    [name: string]: (string | number | boolean | null)[];
 }
 
 // Main class for dataset JSON;
@@ -21,44 +29,48 @@ class DatasetJson {
     // Statistics about the file;
     stats: fs.Stats;
     // Item Group metadata;
-    itemGroupMetadata: ItemGroupMetadata;
-    // Item Group metadata;
-    dataMetadata: DataMetadata;
+    metadata: DatasetMetadata;
 
     // Current position in the file;
     currentPosition: number;
-    // Streat
-    stream: fs.ReadStream;
+    // Flag to indicate if all rows are read;
+    allRowsRead: boolean;
+    // Stream
+    private stream: fs.ReadStream;
+    // NDJSON
+    private isNdJson: boolean;
 
-    /**
+    /*k*
      * Read observations.
      * @constructor
      * @param filePath - Path to the file.
      */
-    constructor(filePath: string) {
+    constructor(filePath: string, isNdJson: boolean = false) {
         this.filePath = filePath;
         this.currentPosition = 0;
+        this.isNdJson = isNdJson;
+        this.allRowsRead = false;
 
-        this.itemGroupMetadata = {
+        this.metadata = {
+            datasetJSONCreationDateTime: "",
+            datasetJSONVersion: "",
             records: -1,
             name: "",
             label: "",
-            items: [],
-        };
-
-        this.dataMetadata = {
-            studyOID: "",
-            metaDataVersionOID: "",
-        };
+            columns: [],
+        }
 
         // Check if file exists;
-        if (!fs.existsSync(filePath)) {
-            throw new Error(`Could not read file ${filePath}`);
+        if (!fs.existsSync(this.filePath)) {
+            throw new Error(`Could not read file ${this.filePath}`);
         }
+
         this.stats = fs.statSync(this.filePath);
+
         this.stream = fs.createReadStream(this.filePath, {
             encoding: "utf8",
         });
+
     }
 
     /**
@@ -66,8 +78,7 @@ class DatasetJson {
      */
     async init() {
         const metadata = await this.getMetadata();
-        this.itemGroupMetadata = metadata.itemGroupMetadata;
-        this.dataMetadata = metadata.dataMetadata;
+        this.metadata = metadata;
     }
 
     /**
@@ -76,7 +87,7 @@ class DatasetJson {
      */
     async fileChanged(): Promise<boolean> {
         const stats = await fsPromises.stat(this.filePath);
-        if (stats.mtimeMs !== this.stats.mtimeMs) {
+        if (this.stats !== null && stats.mtimeMs !== this.stats.mtimeMs) {
             return true;
         }
         return false;
@@ -87,62 +98,63 @@ class DatasetJson {
      * @return True if all required attributes are present, otherwise false.
      */
     #checkAttributesParsed = (
-        item: { [name: string]: boolean },
-        optionalAttributes: string[] = []
+        item: { [name: string]: boolean }
     ): boolean => {
-        return Object.keys(item)
-            .filter((key) => !optionalAttributes.includes(key))
-            .every((key) => item[key] === true);
+        const requiredAttributes = ["datasetJSONCreationDateTime", "datasetJSONVersion", "records", "name", "label", "columns"];
+
+        return requiredAttributes.every((key) => item[key] === true);
     };
 
     /**
      * Get Dataset-JSON metadata
      * @return An object with file metadata.
      */
-    async getMetadata(): Promise<{
-        itemGroupMetadata: ItemGroupMetadata;
-        dataMetadata: DataMetadata;
-    }> {
+    async getMetadata(): Promise<DatasetMetadata> {
+
+        if (this.isNdJson) {
+            return Promise.reject(new Error("NDJSON is not supported yet"));
+        }
         // If the file did not change, use the metadata obtained during initialization;
         if (
             !(await this.fileChanged()) &&
-            this.itemGroupMetadata.records != -1
+            this.metadata.records != -1
         ) {
-            return {
-                itemGroupMetadata: this.itemGroupMetadata,
-                dataMetadata: this.dataMetadata,
-            };
+            return this.metadata;
         } else {
             return new Promise((resolve, reject) => {
                 // Metadata for ItemGroup
-                const itemGroupMetadata: ItemGroupMetadata = {
+                const metadata: DatasetMetadata = {
+                    datasetJSONCreationDateTime: "",
+                    datasetJSONVersion: "",
                     records: -1,
                     name: "",
                     label: "",
-                    items: [],
-                };
-                const parsedItemGroupMetadata = {
-                    records: false,
-                    name: false,
-                    label: false,
-                    items: false,
-                };
-
-                // Metadata for ReferenceData/ClinicalData object;
-                const dataMetadata: DataMetadata = {
+                    columns: [],
                     studyOID: "",
                     metaDataVersionOID: "",
                 };
-                const parsedDataMetadata = {
+                const parsedMetadata: ParsedAttributes = {
+                    datasetJSONCreationDateTime: false,
+                    datasetJSONVersion: false,
+                    dbLastModifiedDateTime: false,
+                    fileOID: false,
+                    originator: false,
+                    sourceSystem: false,
+                    itemGroupOID: false,
+                    isReferenceData: false,
+                    columns: false,
+                    records: false,
+                    name: false,
+                    label: false,
                     studyOID: false,
                     metaDataVersionOID: false,
                     metaDataRef: false,
                 };
 
                 // Restart stream
-                if (this.currentPosition !== 0 || this.stream.destroyed) {
-                    if (!this.stream.destroyed) {
-                        this.stream.destroy();
+                if (this.currentPosition !== 0 || this.stream?.destroyed) {
+                    if (!this.stream?.destroyed) {
+                        this.stream?.destroy();
                     }
                     this.stream = fs.createReadStream(this.filePath, {
                         encoding: "utf8",
@@ -151,11 +163,14 @@ class DatasetJson {
 
                 this.stream
                     .pipe(
-                        JSONStream.parse(
+                        /*
                             [
                                 { recurse: true },
-                                /name|label|items|records|metaDataVersionOID|studyOID|metaDataRef|fileOID|itemData/,
+                                new RegExp(Object.keys({} as MetadataAttributes).concat('rows.*').join("|")),
                             ],
+                        */
+                        JSONStream.parse(
+                            'rows..*',
                             (data: string, nodePath: string) => {
                                 return { path: nodePath, value: data };
                             }
@@ -165,7 +180,7 @@ class DatasetJson {
                         // Check if all required attributes are parsed after the file is fully loaded;
                         if (
                             !this.#checkAttributesParsed(
-                                parsedItemGroupMetadata
+                                parsedMetadata
                             )
                         ) {
                             reject(
@@ -174,50 +189,36 @@ class DatasetJson {
                                 )
                             );
                         }
-                        resolve({ itemGroupMetadata, dataMetadata });
+                        resolve(metadata);
                     })
-                    .on(
-                        "data",
-                        (data: {
-                            path: string;
-                            value: string | number | Array<ItemDescription>;
-                        }) => {
-                            // Element which is emitted;
-                            const key = data.path[data.path.length - 1];
-
-                            // ItemGroupMetadata attributes;
-                            if (
-                                Object.keys(parsedItemGroupMetadata).includes(
-                                    key
-                                )
-                            ) {
-                                itemGroupMetadata[key as "name"] =
-                                    data.value as string;
-                                parsedItemGroupMetadata[
-                                    key as keyof ItemGroupMetadata
-                                ] = true;
+                    .on("header", (data: DatasetMetadata) => {
+                        // In correctly formed Dataset-JSON, all metadata attributes are present before rows
+                        Object.keys(data).forEach(key => {
+                            if (Object.keys(parsedMetadata).includes(key)) {
+                                (metadata as any)[key as MetadataAttributes] = data[key as MetadataAttributes];
+                                parsedMetadata[key as MetadataAttributes] = true;
                             }
-
-                            // DataMetadata attributes;
-                            if (Object.keys(parsedDataMetadata).includes(key)) {
-                                dataMetadata[key as keyof DataMetadata] =
-                                    data.value as string;
-                                parsedDataMetadata[key as keyof DataMetadata] =
-                                    true;
-                            }
-
-                            // Check if all required elements were parsed when the itemData is reached
-                            if (
-                                key === "itemData" &&
-                                this.#checkAttributesParsed(
-                                    parsedItemGroupMetadata
-                                )
-                            ) {
-                                resolve({ itemGroupMetadata, dataMetadata });
-                                this.stream.destroy();
-                            }
+                        });
+                        // Check if all required elements were parsed
+                        if (this.#checkAttributesParsed(parsedMetadata)) {
+                            resolve(metadata);
+                            this.stream.destroy();
                         }
-                    );
+                    })
+                    .on("footer", (data: DatasetMetadata) => {
+                        // If not all required metadata attributes were found before rows, check if they are present after
+                        Object.keys(data).forEach(key => {
+                            if (Object.keys(parsedMetadata).includes(key)) {
+                                (metadata as any)[key as MetadataAttributes] = data[key as MetadataAttributes];
+                                parsedMetadata[key as MetadataAttributes] = true;
+                            }
+                        });
+                        // Check if all required elements were parsed
+                        if (this.#checkAttributesParsed(parsedMetadata)) {
+                            resolve(metadata);
+                            this.stream.destroy();
+                        }
+                    });
             });
         }
     }
@@ -226,12 +227,34 @@ class DatasetJson {
      * Read observations.
      * @param start - The first row number to read.
      * @param length - The number of records to read.
+     * @param type - The type of the returned object.
+     * @param filterColumns - The list of columns to return when type is object. If empty, all columns are returned.
      * @return An array of observations.
      */
-    async getData(start: number, length?: number): Promise<ItemDataArray[]> {
+    async getData(props: {start: number, length?: number, type?: DataType, filterColumns?: string[]}): Promise<(ItemDataArray|ItemDataObject)[]> {
+        if (this.isNdJson) {
+            return Promise.reject(new Error("NDJSON is not supported yet"));
+        }
+
+        // Default type to array;
+        const { start, length, type = "array" } = props;
+        let { filterColumns = [] } = props;
+
+        // Convert filterColumns to lowercase for case-insensitive comparison
+        filterColumns = filterColumns.map((item) => item.toLowerCase());
+
+        // Check if metadata is loaded
+        if (this.metadata.columns.length === 0 || this.metadata.records === -1) {
+            return Promise.reject(new Error("Metadata is not loaded or there are no columns"));
+        }
+
         return new Promise((resolve, reject) => {
             // Validate parameters
-            if (length === 0 || start < 0) {
+            const columnNames: string[] = [];
+            if (type === "object") {
+                columnNames.push(...this.metadata.columns.map((item) => item.name));
+            }
+            if ((typeof length === 'number' && length <= 0) || start < 0 || start > this.metadata.records) {
                 reject(new Error("Invalid parameter values"));
             }
             // If possible, continue reading existing stream, otherwise recreate it.
@@ -246,16 +269,13 @@ class DatasetJson {
                 currentPosition = 0;
             }
 
-            const currentData: ItemDataArray[] = [];
+            const currentData: (ItemDataArray|ItemDataObject)[] = [];
 
             this.stream
                 .pipe(
                     JSONStream.parse(
                         [
-                            /clinicalData|referenceData/,
-                            true,
-                            true,
-                            /itemData/,
+                            'rows',
                             true,
                         ],
                         (data: string, nodePath: string) => {
@@ -265,61 +285,127 @@ class DatasetJson {
                 )
                 .on("end", () => {
                     resolve(currentData);
+                    this.allRowsRead = true;
                 })
                 .on("data", (data: { path: string; value: ItemDataArray }) => {
                     currentPosition += 1;
                     if (
                         length === undefined ||
-                        (currentPosition >= start &&
-                            currentPosition < start + length)
+                        (currentPosition > start &&
+                            currentPosition <= start + length)
                     ) {
-                        currentData.push(data.value);
+                        if (type === "array") {
+                            currentData.push(data.value as ItemDataArray);
+                        } else if (type === "object") {
+                            const obj: ItemDataObject = {};
+                            if (filterColumns.length === 0) {
+                                columnNames.forEach((name, index) => {
+                                    obj[name] = data.value[index];
+                                });
+                            } else {
+                                // Keep only attributes specified in filterColumns
+                                columnNames.forEach((name, index) => {
+                                    if (filterColumns.includes(name.toLowerCase())) {
+                                        obj[name] = data.value[index];
+                                    }
+                                });
+                            }
+                            currentData.push(obj);
+                        }
                     } else if (currentPosition === start + length + 1) {
-                        resolve(currentData);
-                        this.currentPosition = currentPosition;
                         this.stream.pause();
+                        this.currentPosition = currentPosition;
+                        resolve(currentData);
                     }
                 });
         });
     }
 
     /**
+     * Read observations as an iterable.
+     * @param start - The first row number to read.
+     * @param length - The number of records to read in a chunk.
+     * @param type - The type of the returned object.
+     * @param filterColumns - The list of columns to return when type is object. If empty, all columns are returned.
+     * @return An iterable object.
+     */
+
+    async *readRecords(props?: {start?: number, length?: number, type?: DataType, filterColumns?: string[]}): AsyncGenerator<ItemDataArray|ItemDataObject, void, undefined> {
+
+        const { start = 0, length = 200, type, filterColumns } = props || {};
+        let currentPosition = start;
+
+        while (true) {
+            const data = await this.getData({ start: currentPosition, length, type, filterColumns });
+            if (this.allRowsRead === true || data.length === 0) {
+                break;
+            }
+            currentPosition = this.currentPosition;
+            yield* data;
+        }
+    }
+
+
+    /**
      * Get unique values observations.
-     * @param vars - The list of variables for which to obtain the unique observations.
-     * @param data - The data to scan - result of getData() method.
+     * @param columns - The list of variables for which to obtain the unique observations.
      * @param limit - The maximum number of values to store. 0 - no limit.
      * @return An array of observations.
      */
-    getUniqueValues(
-        vars: string[],
-        data: ItemDataArray[],
-        limit: number = 100
-    ): UniqueValues {
+    async getUniqueValues(props: {
+        columns: string[],
+        limit?: number
+    }): Promise<UniqueValues> {
+
+        const { limit = 100} = props;
+        let { columns } = props;
         let result: UniqueValues = {};
 
-        // Get array ids for the variables
-        let varIds: number[] = [];
-        let dataVars = this.itemGroupMetadata.items.map((item) => item.name);
-        varIds = vars
-            .map((variable) => dataVars.indexOf(variable))
-            .filter((id) => id !== undefined);
 
-        varIds.forEach((id) => {
-            result[vars[id]] = [];
+        const notFoundColumns: string[] = [];
+        // Use the case of the columns as specified in the metadata
+        columns = columns.map((item) => {
+            const column = this.metadata.columns.find((column) => column.name.toLowerCase() === item.toLowerCase());
+            if (column === undefined) {
+                notFoundColumns.push(item);
+                return "";
+            } else {
+                return column.name as string;
+            }
         });
 
-        // Get unique values
-        data.forEach((row) => {
-            varIds.forEach((id) => {
-                if (
-                    (limit === 0 || result[vars[id]].length <= limit) &&
-                    row[id] !== undefined &&
-                    result[vars[id]].includes(row[id])
-                ) {
-                    result[vars[id]].push(row[id]);
-                }
+        if (notFoundColumns.length > 0) {
+            return Promise.reject(new Error(`Columns ${notFoundColumns.join(", ")} not found`));
+        }
+
+        // Store number of unique values found
+        const uniqueCount: {[name: string]: number} = {};
+        columns.forEach((column) => {
+            uniqueCount[column] = 0;
+        });
+
+        let isFinished = false;
+
+        while(isFinished === false) {
+            const data = await this.getData({start: this.currentPosition, length: 200, type: "object", filterColumns: columns}) as ItemDataObject[];
+            // If there are no records, exit the loop
+            isFinished = data.length === 0;
+
+            data.forEach((row) => {
+                columns.forEach((column) => {
+                    if (result[column] === undefined) {
+                        result[column] = [];
+                    }
+                    if (uniqueCount[column] < limit && row[column] !== null && !result[column].includes(row[column])) {
+                        result[column].push(row[column]);
+                        uniqueCount[column] += 1;
+                    }
+                });
             });
-        });
+
+            // Check if all unique values are found
+            isFinished =  this.allRowsRead || Object.keys(uniqueCount).every((key) => uniqueCount[key] >= limit);
+        }
 
         // Sort result
         Object.keys(result).forEach((key) => {
