@@ -12,6 +12,9 @@ export type ItemTargetType =
     | "integer"
     | "decimal";
 
+// Type of returned Object from getData
+export type ItemDataObject = { [name: string]: string | number | boolean | null };
+
 // The first item in the data array needs to be a number (itemGroupDataSeq)
 export type FirstItemType = number;
 export type ItemDataArray = [FirstItemType, ...Array<string | number | boolean | null >];
@@ -80,4 +83,18 @@ export interface Dataset {
     itemGroupOID?: string;
     // Boolean value that is set to true when the dataset contains reference data (not subject data)
     isReferenceData?: boolean;
+}
+
+// Metadata for the dataset
+type DatasetMetadata = Omit<Dataset, "rows">;
+// Metadata Attributes
+type MetadataAttributes = keyof DatasetMetadata;
+// Interface for checking which attributes are parsed
+type ParsedAttributes = {
+    [name in MetadataAttributes]: boolean;
+}
+// Type of the object returned
+type DataType = "array" | "object";
+interface UniqueValues {
+    [name: string]: (string | number | boolean | null)[];
 }

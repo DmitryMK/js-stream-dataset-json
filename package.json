@@ -27,7 +27,11 @@
         },
         "transformIgnorePatterns": [
             "<rootDir>/node_modules/"
-        ]
+        ],
+        "moduleNameMapper": {
+            "^class/(.*)$": "<rootDir>/src/class/$1",
+            "^interfaces/(.*)$": "<rootDir>/src/interfaces/$1"
+        }
     },
     "author": "Dmitry Kolosov",
     "license": "MIT",
