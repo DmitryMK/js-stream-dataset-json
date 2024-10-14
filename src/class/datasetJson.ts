@@ -332,24 +332,24 @@ class DatasetJson {
     /**
      * Read observations as an iterable.
      * @param start - The first row number to read.
-     * @param length - The number of records to read in a chunk.
+     * @param bufferLength - The number of records to read in a chunk.
      * @param type - The type of the returned object.
      * @param filterColumns - The list of columns to return when type is object. If empty, all columns are returned.
      * @return An iterable object.
      */
 
-    async *readRecords(props?: {start?: number, length?: number, type?: DataType, filterColumns?: string[]}): AsyncGenerator<ItemDataArray|ItemDataObject, void, undefined> {
+    async *readRecords(props?: {start?: number, bufferLength?: number, type?: DataType, filterColumns?: string[]}): AsyncGenerator<ItemDataArray|ItemDataObject, void, undefined> {
 
         // Check if metadata is loaded
         if (this.metadataLoaded === false) {
             await this.getMetadata();
         }
 
-        const { start = 0, length = 1000, type, filterColumns } = props || {};
+        const { start = 0, bufferLength = 1000, type, filterColumns } = props || {};
         let currentPosition = start;
 
         while (true) {
-            const data = await this.getData({ start: currentPosition, length, type, filterColumns });
+            const data = await this.getData({ start: currentPosition, length: bufferLength, type, filterColumns });
             yield* data;
 
             if (this.allRowsRead === true || data.length === 0) {
@@ -408,7 +408,7 @@ class DatasetJson {
 
         let isFinished = false;
 
-        for await(const row of this.readRecords({length: bufferLength, type: "object", filterColumns: columns}) as AsyncGenerator<ItemDataObject>) {
+        for await(const row of this.readRecords({bufferLength, type: "object", filterColumns: columns}) as AsyncGenerator<ItemDataObject>) {
             columns.forEach((column) => {
                 if (result[column] === undefined) {
                     result[column] = [];
