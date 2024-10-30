@@ -1,3 +1,2 @@
-import DatasetJson from "class/datasetJson";
-export * from "interfaces/datasetJson.d";
+import DatasetJson from "./class/datasetJson";
 export default DatasetJson;

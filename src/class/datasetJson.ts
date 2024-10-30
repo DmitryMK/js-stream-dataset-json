@@ -8,7 +8,7 @@ import {
     UniqueValues,
     MetadataAttributes,
     ParsedAttributes,
-} from "interfaces/datasetJson.d";
+} from "./../interfaces/datasetJson.d";
 import JSONStream from "JSONStream";
 
 // Main class for dataset JSON;
