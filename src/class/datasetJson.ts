@@ -33,7 +33,7 @@ class DatasetJson {
     // NDJSON
     private isNdJson: boolean;
 
-    /*k*
+    /**
      * Read observations.
      * @constructor
      * @param filePath - Path to the file.

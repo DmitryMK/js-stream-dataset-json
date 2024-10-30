@@ -46,7 +46,6 @@
         "typescript": "^5.1.3"
     },
     "dependencies": {
-        "bfj": "^9.0.2",
         "JSONStream": "^1.3.5"
     }
 }

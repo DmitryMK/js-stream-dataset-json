@@ -94,7 +94,7 @@ Reads observations as an iterable.
 
 - `props` (object, optional): An object containing the following properties:
   - `start` (number, optional): The starting position for reading data. Defaults to 0.
-  - `bufferLength` (number, optional): The number of records to read. Defaults to 1000.
+  - `bufferLength` (number, optional): The buffer length for reading data. Defaults to 1000.
   - `type` (DataType, optional): The type of data to return ("array" or "object"). Defaults to "array".
   - `filterColumns` (string[], optional): An array of column names to include in the returned data.
 
