@@ -200,6 +200,7 @@ class DatasetJson {
                     // In correctly formed Dataset-JSON, all metadata attributes are present before rows
                     Object.keys(data).forEach((key) => {
                         if (Object.keys(parsedMetadata).includes(key)) {
+                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
                             (metadata as any)[key as MetadataAttributes] =
                                 data[key as MetadataAttributes];
                             parsedMetadata[key as MetadataAttributes] = true;
@@ -217,6 +218,7 @@ class DatasetJson {
                     // If not all required metadata attributes were found before rows, check if they are present after
                     Object.keys(data).forEach((key) => {
                         if (Object.keys(parsedMetadata).includes(key)) {
+                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
                             (metadata as any)[key as MetadataAttributes] =
                                 data[key as MetadataAttributes];
                             parsedMetadata[key as MetadataAttributes] = true;
@@ -241,7 +243,7 @@ class DatasetJson {
         return new Promise((resolve, reject) => {
             this.metadataLoaded = false;
             // All metadata is stored in the first line of the file
-            let metadata: DatasetMetadata = {
+            const metadata: DatasetMetadata = {
                 datasetJSONCreationDateTime: "",
                 datasetJSONVersion: "",
                 records: -1,
@@ -251,7 +253,7 @@ class DatasetJson {
                 studyOID: "",
                 metaDataVersionOID: "",
             };
-            let parsedMetadata: ParsedAttributes = {
+            const parsedMetadata: ParsedAttributes = {
                 datasetJSONCreationDateTime: false,
                 datasetJSONVersion: false,
                 dbLastModifiedDateTime: false,
@@ -289,6 +291,7 @@ class DatasetJson {
                 // Fill metadata with parsed attributes
                 Object.keys(data).forEach((key) => {
                     if (Object.keys(parsedMetadata).includes(key)) {
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
                         (metadata as any)[key as MetadataAttributes] =
                             data[key as MetadataAttributes];
                         parsedMetadata[key as MetadataAttributes] = true;
@@ -518,59 +521,59 @@ class DatasetJson {
             const currentData: (ItemDataArray | ItemDataObject)[] = [];
 
             this.rlStream
-            .on("line", (line) => {
-                currentPosition += 1;
-                if (
-                    (length === undefined ||
+                .on("line", (line) => {
+                    currentPosition += 1;
+                    if (
+                        (length === undefined ||
                         (currentPosition > start &&
                             currentPosition <= start + length)) &&
                     line.length > 0
-                ) {
-                    const data = JSON.parse(line);
-                    if (type === "array") {
-                        currentData.push(data as ItemDataArray);
-                    } else if (type === "object") {
-                        const obj: ItemDataObject = {};
-                        if (filterColumns.length === 0) {
-                            columnNames.forEach((name, index) => {
-                                obj[name] = data[index];
-                            });
-                        } else {
-                            // Keep only attributes specified in filterColumns
-                            columnNames.forEach((name, index) => {
-                                if (
-                                    filterColumns.includes(
-                                        name.toLowerCase()
-                                    )
-                                ) {
+                    ) {
+                        const data = JSON.parse(line);
+                        if (type === "array") {
+                            currentData.push(data as ItemDataArray);
+                        } else if (type === "object") {
+                            const obj: ItemDataObject = {};
+                            if (filterColumns.length === 0) {
+                                columnNames.forEach((name, index) => {
                                     obj[name] = data[index];
-                                }
-                            });
+                                });
+                            } else {
+                            // Keep only attributes specified in filterColumns
+                                columnNames.forEach((name, index) => {
+                                    if (
+                                        filterColumns.includes(
+                                            name.toLowerCase()
+                                        )
+                                    ) {
+                                        obj[name] = data[index];
+                                    }
+                                });
+                            }
+                            currentData.push(obj);
                         }
-                        currentData.push(obj);
                     }
-                }
-                if (
-                    length !== undefined &&
+                    if (
+                        length !== undefined &&
                     currentPosition === start + length
-                ) {
+                    ) {
                     // When pausing readline, it does not stop immidiately and can emit extra lines,
                     // so pausing approach is not yet implemented
-                    if (this.rlStream !== undefined) {
-                        this.rlStream.close();
+                        if (this.rlStream !== undefined) {
+                            this.rlStream.close();
+                        }
+                        this.stream.destroy();
+                        this.currentPosition = currentPosition;
+                        resolve(currentData);
                     }
-                    this.stream.destroy();
-                    this.currentPosition = currentPosition;
+                })
+                .on("error", (err) => {
+                    reject(err);
+                })
+                .on("close", () => {
                     resolve(currentData);
-                }
-            })
-            .on("error", (err) => {
-                reject(err);
-            })
-            .on("close", () => {
-                resolve(currentData);
-                this.allRowsRead = true;
-            });
+                    this.allRowsRead = true;
+                });
         });
     }
 
@@ -634,7 +637,7 @@ class DatasetJson {
     }): Promise<UniqueValues> {
         const { limit = 100, bufferLength = 1000, sort = true } = props;
         let { columns } = props;
-        let result: UniqueValues = {};
+        const result: UniqueValues = {};
 
         // Check if metadata is loaded
         if (this.metadataLoaded === false) {
