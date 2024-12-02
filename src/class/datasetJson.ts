@@ -30,9 +30,11 @@ class DatasetJson {
     // Stream
     private stream: fs.ReadStream;
     // Parser
-    private parser?: fs.ReadStream;
-    // NDJSON
     private isNdJson: boolean;
+    // NDJSON stream
+    private parser?: fs.ReadStream;
+    // NDJSON flag
+    private rlStream?: readline.Interface;
     // Required attributes
     private requiredAttributes = [
         "datasetJSONCreationDateTime",
@@ -48,10 +50,15 @@ class DatasetJson {
      * @constructor
      * @param filePath - Path to the file.
      */
-    constructor(filePath: string, isNdJson: boolean = false) {
+    constructor(filePath: string, options?: { isNdJson?: boolean }) {
         this.filePath = filePath;
         this.currentPosition = 0;
-        this.isNdJson = isNdJson;
+        // If option isNdjson is not specified, try to detect it from the file extension;
+        if (options?.isNdJson === undefined) {
+            this.isNdJson = this.filePath.toLowerCase().endsWith(".ndjson");
+        } else {
+            this.isNdJson = options.isNdJson;
+        }
         this.allRowsRead = false;
         this.metadataLoaded = false;
 
@@ -234,9 +241,6 @@ class DatasetJson {
         return new Promise((resolve, reject) => {
             this.metadataLoaded = false;
             // All metadata is stored in the first line of the file
-            const stream = fs.createReadStream(this.filePath, {
-                encoding: "utf8",
-            });
             let metadata: DatasetMetadata = {
                 datasetJSONCreationDateTime: "",
                 datasetJSONVersion: "",
@@ -275,12 +279,12 @@ class DatasetJson {
                 });
             }
 
-            const rlStream = readline.createInterface({
+            this.rlStream = readline.createInterface({
                 input: this.stream,
                 crlfDelay: Infinity,
             });
 
-            rlStream.on("line", (line) => {
+            this.rlStream.on("line", (line) => {
                 const data = JSON.parse(line);
                 // Fill metadata with parsed attributes
                 Object.keys(data).forEach((key) => {
@@ -308,7 +312,9 @@ class DatasetJson {
                         )
                     );
                 }
-                rlStream.close();
+                if (this.rlStream !== undefined) {
+                    this.rlStream.close();
+                }
                 this.stream.destroy();
             });
         });
@@ -481,11 +487,26 @@ class DatasetJson {
             const { start, length, type = "array" } = props;
             const filterColumns = props.filterColumns as string[];
 
-            // Read NDJSON file line by line starting from the second line
-            const rlStream = readline.createInterface({
-                input: this.stream,
-                crlfDelay: Infinity,
-            });
+            // If possible, continue reading existing stream, otherwise recreate it.
+            let currentPosition = this.currentPosition;
+            if (this.stream.destroyed || currentPosition > start) {
+                if (!this.stream.destroyed) {
+                    this.stream.destroy();
+                }
+                this.stream = fs.createReadStream(this.filePath, {
+                    encoding: "utf8",
+                });
+                currentPosition = 0;
+                this.rlStream = readline.createInterface({
+                    input: this.stream,
+                    crlfDelay: Infinity,
+                });
+            }
+
+            if (this.rlStream === undefined) {
+                reject(new Error("Could not create readline stream"));
+                return;
+            }
 
             const columnNames: string[] = [];
             if (type === "object") {
@@ -494,10 +515,10 @@ class DatasetJson {
                 );
             }
 
-            let currentPosition = 0;
             const currentData: (ItemDataArray | ItemDataObject)[] = [];
 
-            rlStream.on("line", (line) => {
+            this.rlStream
+            .on("line", (line) => {
                 currentPosition += 1;
                 if (
                     (length === undefined ||
@@ -512,7 +533,7 @@ class DatasetJson {
                         const obj: ItemDataObject = {};
                         if (filterColumns.length === 0) {
                             columnNames.forEach((name, index) => {
-                                obj[name] = data.value[index];
+                                obj[name] = data[index];
                             });
                         } else {
                             // Keep only attributes specified in filterColumns
@@ -522,7 +543,7 @@ class DatasetJson {
                                         name.toLowerCase()
                                     )
                                 ) {
-                                    obj[name] = data.value[index];
+                                    obj[name] = data[index];
                                 }
                             });
                         }
@@ -533,21 +554,24 @@ class DatasetJson {
                     length !== undefined &&
                     currentPosition === start + length
                 ) {
-                    rlStream.pause();
+                    // When pausing readline, it does not stop immidiately and can emit extra lines,
+                    // so pausing approach is not yet implemented
+                    if (this.rlStream !== undefined) {
+                        this.rlStream.close();
+                    }
+                    this.stream.destroy();
                     this.currentPosition = currentPosition;
                     resolve(currentData);
                 }
-            });
-
-            rlStream.on("error", (err) => {
+            })
+            .on("error", (err) => {
                 reject(err);
-            });
-
-            rlStream.on("close", () => {
+            })
+            .on("close", () => {
                 resolve(currentData);
                 this.allRowsRead = true;
             });
-
+        });
     }
 
     /**
