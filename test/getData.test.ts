@@ -28,6 +28,14 @@ test("Get 5 rows of dataset as an object and keep only specific variables", asyn
     expect(rows).toMatchSnapshot();
 });
 
+test("Get one row of NDJSON dataset", async () => {
+    const filePath = "test/data/adsl.ndjson";
+
+    const data = new DatasetJson(filePath);
+    const rows = await data.getData({start: 0, length: 1});
+    expect(rows.length).toBe(1);
+    expect(rows).toMatchSnapshot();
+});
 test("Get 5 rows of NDJSON dataset", async () => {
     const filePath = "test/data/adsl.ndjson";
 

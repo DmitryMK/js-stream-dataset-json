@@ -483,9 +483,7 @@ class DatasetJson {
         type?: DataType;
         filterColumns?: string[];
     }): Promise<(ItemDataArray | ItemDataObject)[]> {
-
         return new Promise((resolve, reject) => {
-
             // Default type to array;
             const { start, length, type = "array" } = props;
             const filterColumns = props.filterColumns as string[];
@@ -519,9 +517,15 @@ class DatasetJson {
             }
 
             const currentData: (ItemDataArray | ItemDataObject)[] = [];
+            // First line contains metadata, so skip it when reading the data
+            let isFirstLine = true;
 
             this.rlStream
                 .on("line", (line) => {
+                    if (currentPosition === 0 && isFirstLine) {
+                        isFirstLine = false;
+                        return;
+                    }
                     currentPosition += 1;
                     if (
                         (length === undefined ||
