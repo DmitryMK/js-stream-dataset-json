@@ -9,7 +9,7 @@
     ],
     "scripts": {
         "test": "jest",
-        "build": "tsc",
+        "build": "rm -rf dist && tsc && cp -r src/interfaces dist/interfaces",
         "publish": "npm run build; npm publish",
         "lint": "eslint . --ext .ts"
     },

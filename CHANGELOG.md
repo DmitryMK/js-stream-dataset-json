@@ -4,7 +4,6 @@
 ### Fixes
 - Fixed type export
 
-
 ## [0.3.1]
 ### Fixes
 - Fixed first row issue for NDJSON

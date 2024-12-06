@@ -86,15 +86,15 @@ export interface Dataset {
 }
 
 // Metadata for the dataset
-type DatasetMetadata = Omit<Dataset, "rows">;
+export type DatasetMetadata = Omit<Dataset, "rows">;
 // Metadata Attributes
-type MetadataAttributes = keyof DatasetMetadata;
+export type MetadataAttributes = keyof DatasetMetadata;
 // Interface for checking which attributes are parsed
-type ParsedAttributes = {
+export type ParsedAttributes = {
     [name in MetadataAttributes]: boolean;
 }
 // Type of the object returned
-type DataType = "array" | "object";
-interface UniqueValues {
+export type DataType = "array" | "object";
+export interface UniqueValues {
     [name: string]: (string | number | boolean | null)[];
 }
