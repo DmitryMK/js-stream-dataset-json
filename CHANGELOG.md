@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.3.4]
+### Fixes
+- Fixed definitions: ItemType type definition, removed isReferenceData
+
 ## [0.3.3]
 ### Fixes
 - Fixed type export

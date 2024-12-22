@@ -5,7 +5,12 @@ export type ItemType =
     | "float"
     | "double"
     | "decimal"
-    | "boolean";
+    | "boolean"
+    | "date"
+    | "time"
+    | "datetime"
+    | "URI"
+    ;
 
 // Target Variable Types
 export type ItemTargetType =
@@ -16,8 +21,7 @@ export type ItemTargetType =
 export type ItemDataObject = { [name: string]: string | number | boolean | null };
 
 // The first item in the data array needs to be a number (itemGroupDataSeq)
-export type FirstItemType = number;
-export type ItemDataArray = [FirstItemType, ...Array<string | number | boolean | null >];
+export type ItemDataArray = Array<string | number | boolean | null >;
 
 // Source System interface
 export interface SourceSystem {
@@ -81,8 +85,6 @@ export interface Dataset {
     metaDataRef?: string;
     // Foreign key to ItemGroupDef.OID in Define / MDR
     itemGroupOID?: string;
-    // Boolean value that is set to true when the dataset contains reference data (not subject data)
-    isReferenceData?: boolean;
 }
 
 // Metadata for the dataset

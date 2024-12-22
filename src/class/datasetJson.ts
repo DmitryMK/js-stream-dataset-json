@@ -148,7 +148,6 @@ class DatasetJson {
                 originator: false,
                 sourceSystem: false,
                 itemGroupOID: false,
-                isReferenceData: false,
                 columns: false,
                 records: false,
                 name: false,
@@ -261,7 +260,6 @@ class DatasetJson {
                 originator: false,
                 sourceSystem: false,
                 itemGroupOID: false,
-                isReferenceData: false,
                 columns: false,
                 records: false,
                 name: false,
@@ -567,7 +565,7 @@ class DatasetJson {
                             this.rlStream.close();
                         }
                         this.stream.destroy();
-                        this.currentPosition = currentPosition;
+                        this.currentPosition = 0;
                         resolve(currentData);
                     }
                 })
