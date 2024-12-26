@@ -1,21 +1,21 @@
 // Variable Types
 export type ItemType =
-    | "string"
-    | "integer"
-    | "float"
-    | "double"
-    | "decimal"
-    | "boolean"
-    | "date"
-    | "time"
-    | "datetime"
-    | "URI"
+    | 'string'
+    | 'integer'
+    | 'float'
+    | 'double'
+    | 'decimal'
+    | 'boolean'
+    | 'date'
+    | 'time'
+    | 'datetime'
+    | 'URI'
     ;
 
 // Target Variable Types
 export type ItemTargetType =
-    | "integer"
-    | "decimal";
+    | 'integer'
+    | 'decimal';
 
 // Type of returned Object from getData
 export type ItemDataObject = { [name: string]: string | number | boolean | null };
@@ -88,7 +88,7 @@ export interface Dataset {
 }
 
 // Metadata for the dataset
-export type DatasetMetadata = Omit<Dataset, "rows">;
+export type DatasetMetadata = Omit<Dataset, 'rows'>;
 // Metadata Attributes
 export type MetadataAttributes = keyof DatasetMetadata;
 // Interface for checking which attributes are parsed
@@ -96,7 +96,7 @@ export type ParsedAttributes = {
     [name in MetadataAttributes]: boolean;
 }
 // Type of the object returned
-export type DataType = "array" | "object";
+export type DataType = 'array' | 'object';
 export interface UniqueValues {
     [name: string]: (string | number | boolean | null)[];
 }

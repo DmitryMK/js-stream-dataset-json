@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.4.0]
+### Updates
+- Added data filtering
+- Add encoding option in constructor
+- Option filterColumns now also works for type = "array" in the getData method
+
 ## [0.3.4]
 ### Fixes
 - Fixed definitions: ItemType type definition, removed isReferenceData

@@ -23,6 +23,24 @@ import DatasetJson from 'js-stream-dataset-json';
 
 dataset = new DatasetJSON('/path/to/dataset.json')
 ```
+
+#### Additional Options
+- `isNdJson` (boolean, optional): Specifies if the file is in NDJSON format. If not provided, it will be detected from the file extension.
+- `encoding` (BufferEncoding, optional): Specifies the encoding of the file. Defaults to 'utf8'.
+
+#### Possible Encodings
+- 'ascii'
+- 'utf8'
+- 'utf16le'
+- 'ucs2'
+- 'base64'
+- 'latin1'
+
+#### Example
+```TypeScript
+const dataset = new DatasetJson('/path/to/dataset.ndjson', { isNdJson: true, encoding: 'utf16le' });
+```
+
 ### Getting Metadata
 ```TypeScript
 const metadata = await dataset.getMetadata();
@@ -44,6 +62,31 @@ for await (const record of dataset.readRecords({start: 10, filterColumns: ["stud
 ### Getting Unique Values
 ```TypeScript
 const uniqueValues = await dataset.getUniqueValues({ columns: ["studyId", "uSubjId"], limit: 100 });
+```
+
+### Applying Filters
+You can apply filters to the data when reading observations.
+
+#### Example
+```TypeScript
+import { Filter } from 'js-stream-dataset-json';
+
+// Define a filter
+const filter: Filter = {
+    conditions: [
+        { variable: 'AGE', operator: 'gt', value: 80 },
+        { variable: 'SEX', operator: 'eq', value: 'M' }
+    ],
+    connectors: ['and']
+};
+
+// Apply the filter when reading data
+const filteredData = await dataset.getData({
+    start: 0,
+    filterData: filter,
+    filterColumns: ['USUBJID', 'SEX', 'AGE']
+});
+console.log(filteredData);
 ```
 
 ## Methods
@@ -74,6 +117,7 @@ Reads observations from the dataset.
   - `length` (number, optional): The number of records to read. Defaults to reading all records.
   - `type` (DataType, optional): The type of the returned object ("array" or "object"). Defaults to "array".
   - `filterColumns` (string[], optional): The list of columns to return when type is "object". If empty, all columns are returned.
+  - `filterData` (Filter, optional): An object used to filter data records when reading the dataset.
 
 #### Returns
 

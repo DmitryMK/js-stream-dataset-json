@@ -1,6 +1,6 @@
-import fs from "fs";
-import fsPromises from "fs/promises";
-import readline from "readline";
+import fs from 'fs';
+import fsPromises from 'fs/promises';
+import readline from 'readline';
 import {
     ItemDataArray,
     ItemDataObject,
@@ -9,8 +9,9 @@ import {
     UniqueValues,
     MetadataAttributes,
     ParsedAttributes,
-} from "./../interfaces/datasetJson";
-import JSONStream from "JSONStream";
+} from './../interfaces/datasetJson';
+import JSONStream from 'JSONStream';
+import { Filter, ParsedFilter, Connector } from 'interfaces/filter';
 
 // Main class for dataset JSON;
 class DatasetJson {
@@ -20,7 +21,6 @@ class DatasetJson {
     stats: fs.Stats;
     // Item Group metadata;
     metadata: DatasetMetadata;
-
     // Current position in the file;
     currentPosition: number;
     // Flag to indicate if all rows are read;
@@ -30,19 +30,21 @@ class DatasetJson {
     // Stream
     private stream: fs.ReadStream;
     // Parser
-    private isNdJson: boolean;
-    // NDJSON stream
     private parser?: fs.ReadStream;
+    // Encoding
+    private encoding: BufferEncoding;
+    // NDJSON flag
+    private isNdJson: boolean;
     // NDJSON flag
     private rlStream?: readline.Interface;
     // Required attributes
     private requiredAttributes = [
-        "datasetJSONCreationDateTime",
-        "datasetJSONVersion",
-        "records",
-        "name",
-        "label",
-        "columns",
+        'datasetJSONCreationDateTime',
+        'datasetJSONVersion',
+        'records',
+        'name',
+        'label',
+        'columns',
     ];
 
     /**
@@ -50,12 +52,13 @@ class DatasetJson {
      * @constructor
      * @param filePath - Path to the file.
      */
-    constructor(filePath: string, options?: { isNdJson?: boolean }) {
+    constructor(filePath: string, options: {encoding : BufferEncoding, isNdJson? : boolean  } = { encoding: 'utf8' }) {
         this.filePath = filePath;
         this.currentPosition = 0;
+        this.encoding = options.encoding;
         // If option isNdjson is not specified, try to detect it from the file extension;
         if (options?.isNdJson === undefined) {
-            this.isNdJson = this.filePath.toLowerCase().endsWith(".ndjson");
+            this.isNdJson = this.filePath.toLowerCase().endsWith('.ndjson');
         } else {
             this.isNdJson = options.isNdJson;
         }
@@ -63,13 +66,23 @@ class DatasetJson {
         this.metadataLoaded = false;
 
         this.metadata = {
-            datasetJSONCreationDateTime: "",
-            datasetJSONVersion: "",
+            datasetJSONCreationDateTime: '',
+            datasetJSONVersion: '',
             records: -1,
-            name: "",
-            label: "",
+            name: '',
+            label: '',
             columns: [],
         };
+
+        // Get all possible encoding values from BufferEncoding type
+        const validEncodings: BufferEncoding[] = [
+            'ascii', 'utf8', 'utf16le', 'ucs2', 'base64', 'latin1'
+        ];
+
+        // Check encoding
+        if (!validEncodings.includes(this.encoding)) {
+            throw new Error(`Unsupported encoding ${this.encoding}`);
+        }
 
         // Check if file exists;
         if (!fs.existsSync(this.filePath)) {
@@ -79,7 +92,7 @@ class DatasetJson {
         this.stats = fs.statSync(this.filePath);
 
         this.stream = fs.createReadStream(this.filePath, {
-            encoding: "utf8",
+            encoding: this.encoding,
         });
     }
 
@@ -131,14 +144,14 @@ class DatasetJson {
             this.metadataLoaded = false;
             // Metadata for ItemGroup
             const metadata: DatasetMetadata = {
-                datasetJSONCreationDateTime: "",
-                datasetJSONVersion: "",
+                datasetJSONCreationDateTime: '',
+                datasetJSONVersion: '',
                 records: -1,
-                name: "",
-                label: "",
+                name: '',
+                label: '',
                 columns: [],
-                studyOID: "",
-                metaDataVersionOID: "",
+                studyOID: '',
+                metaDataVersionOID: '',
             };
             const parsedMetadata: ParsedAttributes = {
                 datasetJSONCreationDateTime: false,
@@ -163,20 +176,20 @@ class DatasetJson {
                     this.stream?.destroy();
                 }
                 this.stream = fs.createReadStream(this.filePath, {
-                    encoding: "utf8",
+                    encoding: this.encoding,
                 });
             }
 
             this.stream
                 .pipe(
                     JSONStream.parse(
-                        "rows..*",
+                        'rows..*',
                         (data: string, nodePath: string) => {
                             return { path: nodePath, value: data };
                         }
                     )
                 )
-                .on("end", () => {
+                .on('end', () => {
                     // Check if all required attributes are parsed after the file is fully loaded;
                     if (!this.checkAttributesParsed(parsedMetadata)) {
                         const notParsed = Object.keys(parsedMetadata).filter(
@@ -186,8 +199,8 @@ class DatasetJson {
                         );
                         reject(
                             new Error(
-                                "Could not find required metadata elements " +
-                                    notParsed.join(", ")
+                                'Could not find required metadata elements ' +
+                                    notParsed.join(', ')
                             )
                         );
                     }
@@ -195,7 +208,7 @@ class DatasetJson {
                     this.metadata = metadata;
                     resolve(metadata);
                 })
-                .on("header", (data: DatasetMetadata) => {
+                .on('header', (data: DatasetMetadata) => {
                     // In correctly formed Dataset-JSON, all metadata attributes are present before rows
                     Object.keys(data).forEach((key) => {
                         if (Object.keys(parsedMetadata).includes(key)) {
@@ -213,7 +226,7 @@ class DatasetJson {
                         this.stream.destroy();
                     }
                 })
-                .on("footer", (data: DatasetMetadata) => {
+                .on('footer', (data: DatasetMetadata) => {
                     // If not all required metadata attributes were found before rows, check if they are present after
                     Object.keys(data).forEach((key) => {
                         if (Object.keys(parsedMetadata).includes(key)) {
@@ -243,14 +256,14 @@ class DatasetJson {
             this.metadataLoaded = false;
             // All metadata is stored in the first line of the file
             const metadata: DatasetMetadata = {
-                datasetJSONCreationDateTime: "",
-                datasetJSONVersion: "",
+                datasetJSONCreationDateTime: '',
+                datasetJSONVersion: '',
                 records: -1,
-                name: "",
-                label: "",
+                name: '',
+                label: '',
                 columns: [],
-                studyOID: "",
-                metaDataVersionOID: "",
+                studyOID: '',
+                metaDataVersionOID: '',
             };
             const parsedMetadata: ParsedAttributes = {
                 datasetJSONCreationDateTime: false,
@@ -275,7 +288,7 @@ class DatasetJson {
                     this.stream?.destroy();
                 }
                 this.stream = fs.createReadStream(this.filePath, {
-                    encoding: "utf8",
+                    encoding: this.encoding,
                 });
             }
 
@@ -284,7 +297,7 @@ class DatasetJson {
                 crlfDelay: Infinity,
             });
 
-            this.rlStream.on("line", (line) => {
+            this.rlStream.on('line', (line) => {
                 const data = JSON.parse(line);
                 // Fill metadata with parsed attributes
                 Object.keys(data).forEach((key) => {
@@ -308,8 +321,8 @@ class DatasetJson {
                     );
                     reject(
                         new Error(
-                            "Could not find required metadata elements: " +
-                                notParsed.join(", ")
+                            'Could not find required metadata elements: ' +
+                                notParsed.join(', ')
                         )
                     );
                 }
@@ -322,11 +335,159 @@ class DatasetJson {
     }
 
     /**
+     * Parse filter
+     * @param filter - Filter object.
+     * @param metadata - Dataset metadata.
+     * @return Parsed filter object with variable indeces added.
+     */
+    private parseFilter = (filter: Filter, metadata: DatasetMetadata): ParsedFilter => {
+        const variableIndeces: number[] = [];
+        filter.conditions.forEach((condition) => {
+            const index = metadata.columns.findIndex(
+                (column) => column.name === condition.variable
+            );
+            if (index !== -1) {
+                variableIndeces.push(index);
+            } else {
+                throw new Error(`Variable ${condition.variable} not found`);
+            }
+        });
+
+        // Check the number of connectors corresponds to the number of variables;
+        if (filter.conditions.length - 1 !== filter.connectors.length) {
+            throw new Error(
+                'Number of logical connectors must be equal to the number of conditions minus one'
+            );
+        }
+
+        const onlyAndConnectors = filter.connectors.every(connector => connector === 'and');
+        const onlyOrConnectors = filter.connectors.every(connector => connector === 'or');
+
+        const variableTypes: string[] = [];
+        variableIndeces.forEach((index) => {
+            if (['string', 'date', 'decimal', 'datetime', 'time', 'URI'].includes(metadata.columns[index].dataType)) {
+                variableTypes.push('string');
+            } else if (['integer', 'float', 'double'].includes(metadata.columns[index].dataType)) {
+                variableTypes.push('number');
+            } else if (metadata.columns[index].dataType === 'boolean') {
+                variableTypes.push('boolean');
+            } else {
+                throw new Error(
+                    `Unknown variable type ${metadata.columns[index].dataType} for variable ${metadata.columns[index].name}`
+                );
+            }
+        });
+
+        return {
+            ...filter,
+            variableIndeces,
+            onlyAndConnectors,
+            onlyOrConnectors,
+            variableTypes,
+        };
+    };
+
+    private filterRow = (row: ItemDataArray, parsedFilter: ParsedFilter): boolean => {
+        const { conditions, variableIndeces, variableTypes, connectors, onlyAndConnectors, onlyOrConnectors, options } = parsedFilter;
+        let result = false;
+        let lastConnector: Connector = 'and';
+        for (let i = 0; i < conditions.length; i++) {
+            const condition = conditions[i];
+            let value = row[variableIndeces[i]];
+            let condValue = condition.value;
+            const type = variableTypes[i];
+            let conditionResult = false;
+            // Common operators
+            switch (condition.operator) {
+            case 'eq':
+                conditionResult = value === condValue;
+                break;
+            case 'ne':
+                conditionResult = value !== condValue;
+                break;
+            case 'in':
+                conditionResult = (condValue as unknown as (string|number)[]).includes(value as string|number);
+                break;
+            case 'notin':
+                conditionResult = !(condValue as unknown as (string|number)[]).includes(value as string|number);
+                break;
+            default:
+                if (type === 'string' && value !== null && condValue !== null) {
+                    if (options?.caseInsensitive === true) {
+                        value = (value as string).toLowerCase();
+                        if (condition.operator !== 'regex') {
+                            condValue = (condition.value as string).toLowerCase();
+                        }
+                    }
+                    switch (condition.operator) {
+                    case 'starts':
+                        conditionResult = (value as string).startsWith(condValue as string);
+                        break;
+                    case 'ends':
+                        conditionResult = (value as string).endsWith(condValue as string);
+                        break;
+                    case 'contains':
+                        conditionResult = (value as string).includes(condValue as string);
+                        break;
+                    case 'notcontains':
+                        conditionResult = !(value as string).includes(condValue as string);
+                        break;
+                    case 'regex':
+                        conditionResult = new RegExp(condValue as string, options?.caseInsensitive ? 'i' : '').test(value as string);
+                        break;
+                    default:
+                        throw new Error(`Unknown operator ${condition.operator}`);
+                    }
+                } else if (type === 'number' && value !== null && condValue !== null) {
+                    switch (condition.operator) {
+                    case 'lt':
+                        conditionResult = value < condValue;
+                        break;
+                    case 'le':
+                        conditionResult = value <= condValue;
+                        break;
+                    case 'gt':
+                        conditionResult = value > condValue;
+                        break;
+                    case 'ge':
+                        conditionResult = value >= condValue;
+                        break;
+                    default:
+                        throw new Error(`Unknown operator ${condition.operator}`);
+                    }
+                }
+            }
+            if (i === 0) {
+                result = conditionResult;
+            } else {
+                if (lastConnector === 'and') {
+                    result = result && conditionResult;
+                } else if (lastConnector === 'or') {
+                    result = result || conditionResult;
+                } else {
+                    throw new Error(`Unknown connector ${lastConnector}`);
+                }
+            }
+            lastConnector = connectors[i];
+            if (onlyAndConnectors && result === false) {
+                // In case all connectors are "and" and the result is false, there is no need to check the rest of the conditions
+                break;
+            }
+            if (onlyOrConnectors && result === true) {
+                // The same for "or" with true result
+                break;
+            }
+        }
+        return result;
+    };
+
+    /**
      * Read observations.
      * @param start - The first row number to read.
      * @param length - The number of records to read.
      * @param type - The type of the returned object.
      * @param filterColumns - The list of columns to return when type is object. If empty, all columns are returned.
+     * @param filterData - An object used to filter data records when reading the dataset.
      * @return An array of observations.
      */
     async getData(props: {
@@ -334,6 +495,7 @@ class DatasetJson {
         length?: number;
         type?: DataType;
         filterColumns?: string[];
+        filterData?: Filter;
     }): Promise<(ItemDataArray | ItemDataObject)[]> {
         // Check if metadata is loaded
         if (this.metadataLoaded === false) {
@@ -351,24 +513,28 @@ class DatasetJson {
             this.metadata.records === -1
         ) {
             return Promise.reject(
-                new Error("Metadata is not loaded or there are no columns")
+                new Error('Metadata is not loaded or there are no columns')
             );
         }
         const { start, length } = props;
         // Check if start and length are valid
         if (
-            (typeof length === "number" && length <= 0) ||
+            (typeof length === 'number' && length <= 0) ||
             start < 0 ||
             start > this.metadata.records
         ) {
             return Promise.reject(
-                new Error("Invalid start/length parameter values")
+                new Error('Invalid start/length parameter values')
             );
         }
+        let parsedFilter: ParsedFilter | undefined;
+        if (props.filterData !== undefined) {
+            parsedFilter = this.parseFilter(props.filterData, this.metadata);
+        }
         if (this.isNdJson) {
-            return this.getNdjsonData({ ...props, filterColumns });
+            return this.getNdjsonData({ ...props, filterColumns, parsedFilter });
         } else {
-            return this.getJsonData({ ...props, filterColumns });
+            return this.getJsonData({ ...props, filterColumns, parsedFilter });
         }
     }
 
@@ -377,17 +543,23 @@ class DatasetJson {
         length?: number;
         type?: DataType;
         filterColumns?: string[];
+        parsedFilter?: ParsedFilter;
     }): Promise<(ItemDataArray | ItemDataObject)[]> {
 
         // Default type to array;
-        const { start, length, type = "array" } = props;
+        const { start, length, type = 'array' } = props;
 
         const filterColumns = props.filterColumns as string[];
+        const filterColumnIndeces = filterColumns.map((column) =>
+            this.metadata.columns.findIndex(
+                (item) => item.name.toLowerCase() === column.toLowerCase()
+            )
+        );
 
         return new Promise((resolve, reject) => {
             // Validate parameters
             const columnNames: string[] = [];
-            if (type === "object") {
+            if (type === 'object') {
                 columnNames.push(
                     ...this.metadata.columns.map((item) => item.name)
                 );
@@ -399,11 +571,11 @@ class DatasetJson {
                     this.stream.destroy();
                 }
                 this.stream = fs.createReadStream(this.filePath, {
-                    encoding: "utf8",
+                    encoding: this.encoding,
                 });
                 currentPosition = 0;
                 this.parser = JSONStream.parse(
-                    ["rows", true],
+                    ['rows', true],
                     (data: string, nodePath: string) => {
                         return { path: nodePath, value: data };
                     }
@@ -412,57 +584,76 @@ class DatasetJson {
             }
 
             if (this.parser === undefined) {
-                reject(new Error("Could not create JSON parser"));
+                reject(new Error('Could not create JSON parser'));
                 return;
             }
 
             const currentData: (ItemDataArray | ItemDataObject)[] = [];
+            let filteredRecords = 0;
+            const isFiltered = props.parsedFilter !== undefined;
 
             this.parser
-                .on("end", () => {
+                .on('end', () => {
                     resolve(currentData);
                     this.allRowsRead = true;
                 })
-                .on("data", (data: { path: string; value: ItemDataArray }) => {
+                .on('data', (data: { path: string; value: ItemDataArray }) => {
                     currentPosition += 1;
                     if (
                         length === undefined ||
                         (currentPosition > start &&
-                            currentPosition <= start + length)
+                            (isFiltered ? filteredRecords < length : currentPosition <= start + length))
                     ) {
-                        if (type === "array") {
-                            currentData.push(data.value as ItemDataArray);
-                        } else if (type === "object") {
-                            const obj: ItemDataObject = {};
-                            if (filterColumns.length === 0) {
-                                columnNames.forEach((name, index) => {
-                                    obj[name] = data.value[index];
-                                });
-                            } else {
-                                // Keep only attributes specified in filterColumns
-                                columnNames.forEach((name, index) => {
-                                    if (
-                                        filterColumns.includes(
-                                            name.toLowerCase()
+                        if (!isFiltered || (isFiltered && this.filterRow(data.value, props.parsedFilter as ParsedFilter))) {
+                            if (type === 'array') {
+                                if (isFiltered) {
+                                    filteredRecords += 1;
+                                }
+                                if (filterColumnIndeces.length === 0) {
+                                    currentData.push(data.value as ItemDataArray);
+                                } else {
+                                    // Keep only indeces specified in filterColumnIndeces
+                                    currentData.push(
+                                        data.value.filter((_, index) =>
+                                            filterColumnIndeces.includes(index)
                                         )
-                                    ) {
+                                    );
+                                }
+                            } else if (type === 'object') {
+                                const obj: ItemDataObject = {};
+                                if (filterColumns.length === 0) {
+                                    columnNames.forEach((name, index) => {
                                         obj[name] = data.value[index];
-                                    }
-                                });
+                                    });
+                                } else {
+                                // Keep only attributes specified in filterColumns
+                                    columnNames.forEach((name, index) => {
+                                        if (
+                                            filterColumns.includes(
+                                                name.toLowerCase()
+                                            )
+                                        ) {
+                                            obj[name] = data.value[index];
+                                        }
+                                    });
+                                }
+                                if (isFiltered) {
+                                    filteredRecords += 1;
+                                }
+                                currentData.push(obj);
                             }
-                            currentData.push(obj);
                         }
                     }
 
                     if (
                         length !== undefined &&
-                        currentPosition === start + length
+                        (isFiltered ? filteredRecords === length : currentPosition === start + length)
                     ) {
                         const parser = this.parser as fs.ReadStream;
                         // Pause the stream and remove current event listeners
                         parser.pause();
-                        parser.removeAllListeners("end");
-                        parser.removeAllListeners("data");
+                        parser.removeAllListeners('end');
+                        parser.removeAllListeners('data');
                         this.currentPosition = currentPosition;
                         resolve(currentData);
                     }
@@ -480,11 +671,17 @@ class DatasetJson {
         length?: number;
         type?: DataType;
         filterColumns?: string[];
+        parsedFilter?: ParsedFilter;
     }): Promise<(ItemDataArray | ItemDataObject)[]> {
         return new Promise((resolve, reject) => {
             // Default type to array;
-            const { start, length, type = "array" } = props;
+            const { start, length, type = 'array' } = props;
             const filterColumns = props.filterColumns as string[];
+            const filterColumnIndeces = filterColumns.map((column) =>
+                this.metadata.columns.findIndex(
+                    (item) => item.name.toLowerCase() === column.toLowerCase()
+                )
+            );
 
             // If possible, continue reading existing stream, otherwise recreate it.
             let currentPosition = this.currentPosition;
@@ -493,7 +690,7 @@ class DatasetJson {
                     this.stream.destroy();
                 }
                 this.stream = fs.createReadStream(this.filePath, {
-                    encoding: "utf8",
+                    encoding: this.encoding,
                 });
                 currentPosition = 0;
                 this.rlStream = readline.createInterface({
@@ -503,12 +700,12 @@ class DatasetJson {
             }
 
             if (this.rlStream === undefined) {
-                reject(new Error("Could not create readline stream"));
+                reject(new Error('Could not create readline stream'));
                 return;
             }
 
             const columnNames: string[] = [];
-            if (type === "object") {
+            if (type === 'object') {
                 columnNames.push(
                     ...this.metadata.columns.map((item) => item.name)
                 );
@@ -517,9 +714,11 @@ class DatasetJson {
             const currentData: (ItemDataArray | ItemDataObject)[] = [];
             // First line contains metadata, so skip it when reading the data
             let isFirstLine = true;
+            let filteredRecords = 0;
+            const isFiltered = props.parsedFilter !== undefined;
 
             this.rlStream
-                .on("line", (line) => {
+                .on('line', (line) => {
                     if (currentPosition === 0 && isFirstLine) {
                         isFirstLine = false;
                         return;
@@ -528,39 +727,56 @@ class DatasetJson {
                     if (
                         (length === undefined ||
                         (currentPosition > start &&
-                            currentPosition <= start + length)) &&
+                            (isFiltered ? filteredRecords < length : currentPosition <= start + length))) &&
                     line.length > 0
                     ) {
                         const data = JSON.parse(line);
-                        if (type === "array") {
-                            currentData.push(data as ItemDataArray);
-                        } else if (type === "object") {
-                            const obj: ItemDataObject = {};
-                            if (filterColumns.length === 0) {
-                                columnNames.forEach((name, index) => {
-                                    obj[name] = data[index];
-                                });
-                            } else {
-                            // Keep only attributes specified in filterColumns
-                                columnNames.forEach((name, index) => {
-                                    if (
-                                        filterColumns.includes(
-                                            name.toLowerCase()
+                        if (!isFiltered || (isFiltered && this.filterRow(data, props.parsedFilter as ParsedFilter))) {
+                            if (type === 'array') {
+                                if (isFiltered) {
+                                    filteredRecords += 1;
+                                }
+                                if (filterColumnIndeces.length === 0) {
+                                    currentData.push(data as ItemDataArray);
+                                } else {
+                                    // Keep only indeces specified in filterColumnIndeces
+                                    currentData.push(
+                                        (data as ItemDataArray).filter((_, index) =>
+                                            filterColumnIndeces.includes(index)
                                         )
-                                    ) {
+                                    );
+                                }
+                            } else if (type === 'object') {
+                                const obj: ItemDataObject = {};
+                                if (filterColumns.length === 0) {
+                                    columnNames.forEach((name, index) => {
                                         obj[name] = data[index];
-                                    }
-                                });
+                                    });
+                                } else {
+                                    // Keep only attributes specified in filterColumns
+                                    columnNames.forEach((name, index) => {
+                                        if (
+                                            filterColumns.includes(
+                                                name.toLowerCase()
+                                            )
+                                        ) {
+                                            obj[name] = data[index];
+                                        }
+                                    });
+                                }
+                                if (isFiltered) {
+                                    filteredRecords += 1;
+                                }
+                                currentData.push(obj);
                             }
-                            currentData.push(obj);
                         }
                     }
                     if (
                         length !== undefined &&
-                    currentPosition === start + length
+                    (isFiltered ? filteredRecords === length : currentPosition === start + length)
                     ) {
-                    // When pausing readline, it does not stop immidiately and can emit extra lines,
-                    // so pausing approach is not yet implemented
+                        // When pausing readline, it does not stop immidiately and can emit extra lines,
+                        // so pausing approach is not yet implemented
                         if (this.rlStream !== undefined) {
                             this.rlStream.close();
                         }
@@ -569,10 +785,10 @@ class DatasetJson {
                         resolve(currentData);
                     }
                 })
-                .on("error", (err) => {
+                .on('error', (err) => {
                     reject(err);
                 })
-                .on("close", () => {
+                .on('close', () => {
                     resolve(currentData);
                     this.allRowsRead = true;
                 });
@@ -654,7 +870,7 @@ class DatasetJson {
             );
             if (column === undefined) {
                 notFoundColumns.push(item);
-                return "";
+                return '';
             } else {
                 return column.name as string;
             }
@@ -662,7 +878,7 @@ class DatasetJson {
 
         if (notFoundColumns.length > 0) {
             return Promise.reject(
-                new Error(`Columns ${notFoundColumns.join(", ")} not found`)
+                new Error(`Columns ${notFoundColumns.join(', ')} not found`)
             );
         }
 
@@ -676,7 +892,7 @@ class DatasetJson {
 
         for await (const row of this.readRecords({
             bufferLength,
-            type: "object",
+            type: 'object',
             filterColumns: columns,
         }) as AsyncGenerator<ItemDataObject>) {
             columns.forEach((column) => {
